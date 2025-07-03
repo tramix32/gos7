@@ -14,6 +14,7 @@ type S7DataItem struct {
 	WordLen  int
 	DBNumber int
 	Start    int
+	Bit      int
 	Amount   int
 	Data     []byte
 	Error    string
@@ -78,9 +79,14 @@ func (mb *client) AGWriteMulti(dataItems []S7DataItem, itemsCount int) (err erro
 			itemDataSize = dataItems[i].Amount * 2
 			binary.BigEndian.PutUint16(s7ItemWrite[2:], uint16(itemDataSize))
 			break
+		case s7wlreal:
+			s7ItemWrite[1] = tsResReal // real
+			itemDataSize = dataItems[i].Amount * dataSizeByte(dataItems[i].WordLen)
+			binary.BigEndian.PutUint16(s7ItemWrite[2:], uint16(itemDataSize))
+			break
 		default:
 			s7ItemWrite[1] = tsResByte // byte/word/dword etc.
-			itemDataSize = dataItems[i].Amount
+			itemDataSize = dataItems[i].Amount * dataSizeByte(dataItems[i].WordLen)
 			binary.BigEndian.PutUint16(s7ItemWrite[2:], uint16(itemDataSize*8))
 			break
 
@@ -157,8 +163,11 @@ func (mb *client) AGReadMulti(dataItems []S7DataItem, itemsCount int) (err error
 
 		// Adjusts the offset
 		var addr int
-		if dataItems[i].WordLen == s7wlbit || dataItems[i].WordLen == s7wlcounter || dataItems[i].WordLen == s7wltimer {
+		if dataItems[i].WordLen == s7wlcounter || dataItems[i].WordLen == s7wltimer {
 			addr = dataItems[i].Start
+		} else if dataItems[i].WordLen == s7wlbit {
+			addr = dataItems[i].Start << 3
+			addr += dataItems[i].Bit // Add Bit addr
 		} else {
 			addr = dataItems[i].Start * 8
 		}

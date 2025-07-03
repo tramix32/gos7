@@ -49,9 +49,27 @@ func NewTCPClientHandler(address string, rack int, slot int) *TCPClientHandler {
 	return h
 }
 
-//TCPClient creator for a TCP client with address, rack and slot, implement from interface client
+// NewTCPClientHandlerWithConnectType allocates a new TCPClientHandler with connection type.
+func NewTCPClientHandlerWithConnectType(address string, rack int, slot int, connectType int) *TCPClientHandler {
+	h := &TCPClientHandler{}
+	h.Address = address
+	h.Timeout = tcpTimeout
+	h.IdleTimeout = tcpIdleTimeout
+	h.ConnectionType = connectType
+	remoteTSAP := uint16(h.ConnectionType)<<8 + (uint16(rack) * 0x20) + uint16(slot)
+	h.setConnectionParameters(address, 0x0100, remoteTSAP)
+	return h
+}
+
+// TCPClient creator for a TCP client with address, rack and slot, implement from interface client
 func TCPClient(address string, rack int, slot int) Client {
 	handler := NewTCPClientHandler(address, rack, slot)
+	return NewClient(handler)
+}
+
+// TCPClientWithConnectType creator for a TCP client with address, rack, slot and connect type, implement from interface client
+func TCPClientWithConnectType(address string, rack int, slot int, connectType int) Client {
+	handler := NewTCPClientHandlerWithConnectType(address, rack, slot, connectType)
 	return NewClient(handler)
 }
 
@@ -113,6 +131,10 @@ func (mb *tcpTransporter) Send(request []byte) (response []byte, err error) {
 	var timeout time.Time
 	if mb.Timeout > 0 {
 		timeout = mb.lastActivity.Add(mb.Timeout)
+	}
+	if mb.conn == nil {
+		err = fmt.Errorf("Connection to address %s is null", mb.Address)
+		return
 	}
 	if err = mb.conn.SetDeadline(timeout); err != nil {
 		return
@@ -177,6 +199,9 @@ func (mb *tcpTransporter) tcpConnect() error {
 		dialer := net.Dialer{Timeout: mb.Timeout}
 		conn, err := dialer.Dial("tcp", mb.Address)
 		if err != nil {
+			if conn != nil {
+				_ = conn.Close()
+			}
 			return err
 		}
 		mb.conn = conn
@@ -192,6 +217,9 @@ func (mb *tcpTransporter) connect() error {
 	//second stage: ISOTCP (ISO 8073) Connection
 	err = mb.isoConnect()
 	if err != nil {
+		if mb.conn != nil {
+			_ = mb.conn.Close()
+		}
 		return err
 	}
 	// Third stage : S7 protocol data unit negotiation
@@ -303,7 +331,7 @@ func (mb *tcpTransporter) closeIdle() {
 	}
 }
 
-//reserve for future use, need to verify the request and response
+// reserve for future use, need to verify the request and response
 func (mb *tcpPackager) Verify(request []byte, response []byte) (err error) {
 	return
 }
