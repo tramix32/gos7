@@ -460,8 +460,9 @@ func (mb *client) Read(variable string, buffer []byte) (value interface{}, err e
 			if err != nil {
 				return
 			}
-			helper := Helper{}
-			helper.GetBoolAt(buffer[0], uint(bit))
+			//helper := Helper{}
+			//helper.GetBoolAt(buffer[0], uint(bit))
+			value = buffer[0]
 			return
 		case "A": //output
 			fallthrough
